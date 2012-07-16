@@ -1,8 +1,10 @@
 from bs4 import BeautifulSoup
 import urllib
 import sys
+import re
 
 tunein_base_url="http://tunein.com"
+m3u_url="http://wunderradio.wunderground.com/support/wunderradio/m3u/m3umaker.m3u?action=m3u&wuiId=rt:"
 
 def main():
     try:
@@ -25,8 +27,6 @@ def main():
                     channel_name=name_tag.h3.a.string
                 else:
                     sys.stderr.write('Unable to locate Channel Name: \n'+str(result.prettify())+'\n')
-                 
-                print("  <channel>\n    <name>"+channel_name+"</name>")  
                 
                 # Channel Thumbnail
                 thumb_url=None
@@ -36,20 +36,43 @@ def main():
                 else:
                     sys.stderr.write("No logo for Channel: "+channel_name+"\n")
                 
+                # Get Station TuneIn ID
+                play_link=result.find('a',attrs=['play','play_ext'])
+                if play_link is not None:
+                    play_href=play_link['href']
+                    match=re.compile('\((\d+),').search(play_href)
+                    if match:
+                        station_num=match.group(1)
+                        print("Station Number: "+station_num)
+                    else:
+                        sys.stderr.write("No Station Num for channel"+channel_name+"\n")
+                else:
+                    sys.stderr.write("No play link for Channel: "+channel_name+"\n")
+
+                
+                # Get station call sign
+                match=re.compile('\(((W|K)[A-Z]{3}(-(FM|AM))*)\)').search(channel_name)
+                if match:
+                    call_sign=match.group(1)
+                    print("Call Sign: "+call_sign)
+                else:
+                    match=re.compile('(W|K)[A-Z]{3}(-(FM|AM))*').search(channel_name)
+                    if match:
+                        call_sign=match.group(0)
+                        print("Call Sign: "+call_sign)
+                    else:
+                        sys.stderr.write("No call sign for Channel: "+channel_name+"\n")
+                    
+                
+                print("  <channel>\n    <name>"+channel_name+"</name>")  
+                
                 if thumb_url is not None:
                     print("    <thumbnail>"+thumb_url+"</thumbnail>")  
-                
-                print("    <items>\n      <item>")
+
+                print("    <items>")
                 print("        <title>"+channel_name+"</title>")
-                
-                # Generate Streams
-                print("        <link>blah</link>")
-                print("        <link>blah2</link>")
-                
-                # Close Channel Definition
                 print("    </items>\n  </channel>")
             
-            break
             # Get the next search result page URL
             next_tag=soup.find('a',id='A2')
 
