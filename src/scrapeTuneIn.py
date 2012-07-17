@@ -4,8 +4,22 @@ import sys
 import re
 
 tunein_base_url="http://tunein.com"
-m3u_url="http://wunderradio.wunderground.com/support/wunderradio/m3u/m3umaker.m3u?action=m3u&wuiId=rt:"
+m3u_base_url="http://wunderradio.wunderground.com/support/wunderradio/m3u/m3umaker.m3u?action=m3u&wuiId=rt:"
 
+def get_streams_method1(station_num):
+    m3u_url=m3u_base_url+station_num
+    
+    try:
+        file=urllib.urlopen(m3u_url)
+        lines=file.readlines()
+        file.close()
+        return lines
+    except IOError as e:
+        print "Unable to open url ({0}) - (Error #{1}): {2}".format(m3u_url,e.errno, e.strerror)
+    except:
+        print "Unexpected error:", sys.exc_info()[0]
+        raise    
+        
 def main():
     try:
         url='file:../data/RDU_radio.html'
@@ -43,26 +57,29 @@ def main():
                     match=re.compile('\((\d+),').search(play_href)
                     if match:
                         station_num=match.group(1)
-                        print("Station Number: "+station_num)
                     else:
-                        sys.stderr.write("No Station Num for channel"+channel_name+"\n")
+                        sys.stderr.write("(Skipping) No Station Num for channel: "+channel_name+"\n")
+                        continue
                 else:
-                    sys.stderr.write("No play link for Channel: "+channel_name+"\n")
-
+                    sys.stderr.write("(Skipping) No play link for Channel: "+channel_name+"\n")
+                    continue
                 
                 # Get station call sign
                 match=re.compile('\(((W|K)[A-Z]{3}(-(FM|AM))*)\)').search(channel_name)
                 if match:
                     call_sign=match.group(1)
-                    print("Call Sign: "+call_sign)
                 else:
                     match=re.compile('(W|K)[A-Z]{3}(-(FM|AM))*').search(channel_name)
                     if match:
                         call_sign=match.group(0)
-                        print("Call Sign: "+call_sign)
                     else:
-                        sys.stderr.write("No call sign for Channel: "+channel_name+"\n")
-                    
+                        sys.stderr.write("(Skipping) No call sign for Channel: "+channel_name+"\n")
+                        continue
+                
+                stream_urls=get_streams_method1(station_num)
+                if stream_urls is None:
+                    sys.stderr.write("(Skipping) No stream URLs for Channel: "+channel_name+"\n")
+                    continue
                 
                 print("  <channel>\n    <name>"+channel_name+"</name>")  
                 
@@ -70,7 +87,15 @@ def main():
                     print("    <thumbnail>"+thumb_url+"</thumbnail>")  
 
                 print("    <items>")
-                print("        <title>"+channel_name+"</title>")
+                
+                for url in stream_urls:
+                    print("      <item>")
+                    print("        <title>"+channel_name+"</title>")
+                    print("        <link>"+url.rstrip()+"</link>")
+                    if thumb_url is not None:
+                        print("        <thumbnail>"+thumb_url+"</thumbnail>")
+                    print("      </item>")
+
                 print("    </items>\n  </channel>")
             
             # Get the next search result page URL
