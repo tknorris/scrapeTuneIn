@@ -5,21 +5,38 @@ import re
 
 tunein_base_url="http://tunein.com"
 m3u_base_url="http://wunderradio.wunderground.com/support/wunderradio/m3u/m3umaker.m3u?action=m3u&wuiId=rt:"
+restricted_base_url="http://www.surfmusic.de/media/"
 
-def get_streams_method1(station_num):
+def get_tunein_streams(station_num):
     m3u_url=m3u_base_url+station_num
+    return get_streams(m3u_url)
+
+def get_restricted_stream(call_sign):
+    if len(call_sign)==4:
+        call_sign=call_sign+"-fm"
+        
+    restricted_url=restricted_base_url+call_sign.lower()+".m3u"
+    streams=get_streams(restricted_url)
     
+    # If an html page was returned, then no streams were found
+    if streams[0].find("<html>")>=0:
+        streams=None
+        
+    return streams
+
+def get_streams(url):
     try:
-        file=urllib.urlopen(m3u_url)
-        lines=file.readlines()
-        file.close()
+        handle=urllib.urlopen(url)
+        lines=handle.readlines()
+        handle.close()
         return lines
     except IOError as e:
-        print "Unable to open url ({0}) - (Error #{1}): {2}".format(m3u_url,e.errno, e.strerror)
+        sys.stderr.write("Unable to open url ({0}) - (Error #{1}): {2}".format(url,e.errno, e.strerror))
     except:
-        print "Unexpected error:", sys.exc_info()[0]
+        sys.stderr.write("Unexpected error:", sys.exc_info()[0])
         raise    
         
+            
 def main():
     try:
         url='file:../data/RDU_radio.html'
@@ -39,6 +56,7 @@ def main():
                 name_tag=result.find('td','show')
                 if name_tag is not None:
                     channel_name=name_tag.h3.a.string
+                    channel_name=channel_name.replace("&","&amp")
                 else:
                     sys.stderr.write('Unable to locate Channel Name: \n'+str(result.prettify())+'\n')
                 
@@ -76,7 +94,11 @@ def main():
                         sys.stderr.write("(Skipping) No call sign for Channel: "+channel_name+"\n")
                         continue
                 
-                stream_urls=get_streams_method1(station_num)
+                stream_urls=get_tunein_streams(station_num)
+                if stream_urls[0].find("restricted")>=0:
+                    stream_urls=None
+                    stream_urls=get_restricted_stream(call_sign)
+                    
                 if stream_urls is None:
                     sys.stderr.write("(Skipping) No stream URLs for Channel: "+channel_name+"\n")
                     continue
@@ -87,15 +109,15 @@ def main():
                     print("    <thumbnail>"+thumb_url+"</thumbnail>")  
 
                 print("    <items>")
-                
-                for url in stream_urls:
-                    print("      <item>")
-                    print("        <title>"+channel_name+"</title>")
-                    print("        <link>"+url.rstrip()+"</link>")
-                    if thumb_url is not None:
-                        print("        <thumbnail>"+thumb_url+"</thumbnail>")
-                    print("      </item>")
+                print("      <item>")
+                print("        <title>"+channel_name+"</title>")
+                if thumb_url is not None:
+                    print("        <thumbnail>"+thumb_url+"</thumbnail>")
 
+                for url in stream_urls:
+                    print("        <link>"+url.rstrip()+"</link>")
+
+                print("      </item>")
                 print("    </items>\n  </channel>")
             
             # Get the next search result page URL
@@ -116,9 +138,9 @@ def main():
         print("</channels>")
 
     except IOError as e:
-        print "Unable to open url ({0}) - (Error #{1}): {2}".format(url,e.errno, e.strerror)
+        sys.stderr.write("Unable to open url ({0}) - (Error #{1}): {2}".format(url,e.errno, e.strerror))
     except:
-        print "Unexpected error:", sys.exc_info()[0]
+        sys.stderr.write("Unexpected error:", sys.exc_info()[0])
         raise    
     
 
