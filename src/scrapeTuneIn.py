@@ -11,20 +11,30 @@ def get_tunein_streams(station_num):
     m3u_url=m3u_base_url+station_num
     return get_streams(m3u_url)
 
-def get_restricted_stream(call_sign):
+def get_restricted_streams(call_sign):
     if len(call_sign)==4:
-        call_sign=call_sign+"-fm"
-        
-    restricted_url=restricted_base_url+call_sign.lower()+".m3u"
-    streams=get_streams(restricted_url)
-    
+        # Try FM band first
+        restricted_url=restricted_base_url+call_sign.lower()+'-fm.m3u'
+        streams=get_streams(restricted_url)
+
+        # If an html page was returned, then no streams were found
+        if streams[0].find('<html>')>=0:
+            # Then try AM band if the band was unspecified
+            restricted_url=restricted_base_url+call_sign.lower()+'-am.m3u'
+            streams=get_streams(restricted_url)
+    else:
+        restricted_url=restricted_base_url+call_sign.lower()+'.m3u'
+        streams=get_streams(restricted_url)
+
     # If an html page was returned, then no streams were found
-    if streams[0].find("<html>")>=0:
+    if streams[0].find('<html>')>=0:
         streams=None
-        
+    
     return streams
 
 def get_streams(url):
+    #sys.stderr.write("Pulling Streams from URL: "+url+"\n")
+    
     try:
         handle=urllib.urlopen(url)
         lines=handle.readlines()
@@ -40,7 +50,6 @@ def get_streams(url):
 def main():
     try:
         url='file:../data/RDU_radio.html'
-        #url="http://tunein.com/search/?id=r100046&so=0"
     
         soup = BeautifulSoup(urllib.urlopen(url))
         print('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<channels>')
@@ -91,13 +100,12 @@ def main():
                     if match:
                         call_sign=match.group(0)
                     else:
-                        sys.stderr.write("(Skipping) No call sign for Channel: "+channel_name+"\n")
-                        continue
+                        sys.stderr.write("No call sign for Channel: "+channel_name+"\n")
                 
                 stream_urls=get_tunein_streams(station_num)
-                if stream_urls[0].find("restricted")>=0:
+                if stream_urls[0].find("restricted")>=0 and call_sign is not None:
                     stream_urls=None
-                    stream_urls=get_restricted_stream(call_sign)
+                    stream_urls=get_restricted_streams(call_sign)
                     
                 if stream_urls is None:
                     sys.stderr.write("(Skipping) No stream URLs for Channel: "+channel_name+"\n")
