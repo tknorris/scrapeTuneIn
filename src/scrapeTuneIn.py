@@ -1,3 +1,4 @@
+#!/usr/bin/python
 from bs4 import BeautifulSoup
 import urllib
 import sys
@@ -41,15 +42,22 @@ def get_streams(url):
         handle.close()
         return lines
     except IOError as e:
-        sys.stderr.write("Unable to open url ({0}) - (Error #{1}): {2}".format(url,e.errno, e.strerror))
+        sys.stderr.write("Unable to open url ({0}) - (Error #{1}): {2}\n".format(url,e.errno, e.strerror))
     except:
         sys.stderr.write("Unexpected error:", sys.exc_info()[0])
         raise    
         
             
-def main():
+def main(argv=None):
     try:
-        url='file:../data/RDU_radio.html'
+        if argv is None:
+            argv=sys.argv
+             
+        if len(argv) != 2:
+            sys.stderr.write("Usage: scrapeTuneIn.py <TuneIn URL>\n")
+            return 1
+        
+        url=argv[1]
     
         soup = BeautifulSoup(urllib.urlopen(url))
         print('<?xml version="1.0" encoding="UTF-8" standalone="yes"?>\n<channels>')
@@ -68,7 +76,7 @@ def main():
                     channel_name=channel_name.replace("&","&amp")
                 else:
                     sys.stderr.write('Unable to locate Channel Name: \n'+str(result.prettify())+'\n')
-                
+
                 # Channel Thumbnail
                 thumb_url=None
                 thumb_tag=result.find('img','logo')
@@ -92,10 +100,12 @@ def main():
                     continue
                 
                 # Get station call sign
+                #(look for 4 chars starting with W or K optionally followed by -FM or -AM in parens)
                 match=re.compile('\(((W|K)[A-Z]{3}(-(FM|AM))*)\)').search(channel_name)
                 if match:
                     call_sign=match.group(1)
                 else:
+                    # look for same thing but not in parens
                     match=re.compile('(W|K)[A-Z]{3}(-(FM|AM))*').search(channel_name)
                     if match:
                         call_sign=match.group(0)
@@ -146,11 +156,12 @@ def main():
         print("</channels>")
 
     except IOError as e:
-        sys.stderr.write("Unable to open url ({0}) - (Error #{1}): {2}".format(url,e.errno, e.strerror))
+        sys.stderr.write("Unable to open url ({0}) - (Error #{1}): {2}\n".format(url,e.errno, e.strerror))
+        return 1
     except:
         sys.stderr.write("Unexpected error:", sys.exc_info()[0])
         raise    
     
 
 if __name__ == '__main__':
-    main()
+    sys.exit(main(argv=sys.argv))
